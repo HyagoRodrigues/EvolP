@@ -1,19 +1,7 @@
-import NextAuth from 'next-auth'
-import CredentialsProvider from 'next-auth/providers/credentials'
-import bcrypt from 'bcryptjs'
+import NextAuth from 'next-auth';
+import CredentialsProvider from 'next-auth/providers/credentials';
 
-// Banco de dados temporário
-const users = [
-  {
-    id: '1',
-    email: 'admin@evolp.com',
-    password: bcrypt.hashSync('123456', 10),
-    name: 'Administrador',
-    role: 'admin'
-  }
-]
-
-export const authOptions = {
+export default NextAuth({
   providers: [
     CredentialsProvider({
       name: 'Credentials',
@@ -22,60 +10,18 @@ export const authOptions = {
         password: { label: "Senha", type: "password" }
       },
       async authorize(credentials) {
-        try {
-          if (!credentials?.email || !credentials?.password) {
-            throw new Error('Credenciais incompletas')
-          }
-
-          const user = users.find(user => user.email === credentials.email)
-          
-          if (!user) {
-            throw new Error('Usuário não encontrado')
-          }
-
-          const isValid = await bcrypt.compare(credentials.password, user.password)
-          
-          if (!isValid) {
-            throw new Error('Senha incorreta')
-          }
-
+        if (credentials?.email === "admin@evolp.com" && credentials?.password === "123456") {
           return {
-            id: user.id,
-            email: user.email,
-            name: user.name,
-            role: user.role
-          }
-        } catch (error) {
-          throw new Error(error.message)
+            id: "1",
+            email: credentials.email,
+            name: "Administrador"
+          };
         }
+        return null;
       }
     })
   ],
   pages: {
-    signIn: '/login',
-    error: '/login'
-  },
-  callbacks: {
-    async jwt({ token, user }) {
-      if (user) {
-        token.role = user.role
-        token.email = user.email
-      }
-      return token
-    },
-    async session({ session, token }) {
-      if (session.user) {
-        session.user.id = token.sub
-        session.user.role = token.role
-        session.user.email = token.email
-      }
-      return session
-    }
-  },
-  session: {
-    strategy: 'jwt',
-    maxAge: 24 * 60 * 60, // 24 hours
+    signIn: '/login'
   }
-}
-
-export default NextAuth(authOptions)
+});
