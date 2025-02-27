@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/router';
 import {
   Container,
@@ -17,7 +17,7 @@ import {
   ListItem,
   ListItemText,
   Chip,
-  Grid, // Importação adicionada
+  Grid,
 } from '@mui/material';
 import {
   ArrowBack as ArrowBackIcon,
@@ -29,61 +29,74 @@ import {
   PlaylistAddCheck as ImplementationIcon,
   Timeline as EvolutionIcon,
 } from '@mui/icons-material';
-import Layout from '../../../../components/Layout';
-
-// Mock data - Replace with API calls
-const mockData = {
-  avaliacao: {
-    queixaPrincipal: "Dor abdominal intensa",
-    historicoMedico: "Histórico de gastrite",
-    sinaisVitais: {
-      pressao: "120/80 mmHg",
-      temperatura: "36.5°C",
-      frequenciaCardiaca: "80 bpm"
-    }
-  },
-  diagnostico: {
-    problemasSaude: [
-      "Dor aguda relacionada à inflamação gástrica",
-      "Ansiedade relacionada ao quadro clínico"
-    ],
-    necessidadesCuidado: [
-      "Controle da dor",
-      "Suporte emocional"
-    ]
-  },
-  planejamento: {
-    intervencoes: [
-      "Administração de medicação conforme prescrição",
-      "Monitoramento dos sinais vitais",
-      "Orientação sobre dieta"
-    ]
-  },
-  implementacao: {
-    acoes: [
-      "Medicação administrada às 14h",
-      "Sinais vitais estáveis",
-      "Orientações realizadas"
-    ]
-  }
-};
-
-interface EvolutionForm {
-  avaliacaoResultados: string;
-  ajustesPropostos: string;
-}
+import Layout from '@/components/Layout';
+import { nursingService } from '@/services/nursingService';
+import { toast } from 'react-toastify';
+import { mockNursingData } from '@/mocks/nursingData';
+import { INursingEvolutionForm, INursingEvolutionData } from '@/types/nursing';
 
 export default function NursingEvolution() {
   const router = useRouter();
   const { id } = router.query;
+  
+  const [isLoading, setIsLoading] = useState(true);
+  const [evolutionData, setEvolutionData] = useState(mockData);
 
+  useEffect(() => {
+    if (id) {
+      loadEvolutionData();
+    }
+  }, [id]);
+
+  const loadEvolutionData = async () => {
+    try {
+      setIsLoading(true);
+      const [assessment, diagnosis, planning, implementation] = await Promise.all([
+        nursingService.getAssessment(id as string),
+        nursingService.getDiagnosis(id as string),
+        nursingService.getPlanning(id as string),
+        nursingService.getImplementation(id as string),
+      ]);
+
+      setEvolutionData({
+        avaliacao: assessment,
+        diagnostico: diagnosis,
+        planejamento: planning,
+        implementacao: implementation,
+      });
+    } catch (error) {
+      console.error('Error loading evolution data:', error);
+      toast.error('Erro ao carregar os dados da evolução');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    if (validateForm()) {
+      try {
+        await nursingService.createEvolution({
+          pacienteId: id as string,
+          avaliacaoResultados: formData.avaliacaoResultados,
+          ajustesPropostos: formData.ajustesPropostos,
+          dataCriacao: new Date().toISOString(),
+        });
+
+        toast.success('Evolução finalizada com sucesso!');
+        router.push('/pacientes');
+      } catch (error) {
+        console.error('Error saving evolution:', error);
+        toast.error('Erro ao salvar a evolução');
+      }
+    }
+  };
   const [formData, setFormData] = useState<EvolutionForm>({
     avaliacaoResultados: '',
     ajustesPropostos: '',
   });
-
   const [errors, setErrors] = useState<Partial<EvolutionForm>>({});
-
   const handleChange = (field: keyof EvolutionForm, value: string) => {
     setFormData(prev => ({
       ...prev,
@@ -97,18 +110,12 @@ export default function NursingEvolution() {
       }));
     }
   };
-
   const validateForm = () => {
     const newErrors: Partial<EvolutionForm> = {};
     
     if (!formData.avaliacaoResultados) {
       newErrors.avaliacaoResultados = 'Campo obrigatório';
     }
-
-    setErrors(newErrors);
-    return Object.keys(newErrors).length === 0;
-  };
-
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     
@@ -118,7 +125,6 @@ export default function NursingEvolution() {
       router.push('/pacientes');
     }
   };
-
   const renderSection = (
     title: string,
     icon: React.ReactNode,
@@ -139,7 +145,6 @@ export default function NursingEvolution() {
       </AccordionDetails>
     </Accordion>
   );
-
   return (
     <Layout>
       <Container maxWidth="lg" sx={{ py: 4 }}>
@@ -156,135 +161,42 @@ export default function NursingEvolution() {
               Evolução de Enfermagem
             </Typography>
           </Box>
-
-          {/* Histórico das Etapas */}
-          <Box sx={{ mb: 4 }}>
-            {renderSection(
-              'Avaliação de Enfermagem',
-              <AssessmentIcon />,
-              <Card>
-                <CardContent>
-                  <Typography variant="subtitle1" gutterBottom>
-                    Queixa Principal:
-                  </Typography>
-                  <Typography variant="body1" paragraph>
-                    {mockData.avaliacao.queixaPrincipal}
-                  </Typography>
-
-                  <Typography variant="subtitle1" gutterBottom>
-                    Sinais Vitais:
-                  </Typography>
-                  <Box sx={{ display: 'flex', gap: 2 }}>
-                    <Chip label={`PA: ${mockData.avaliacao.sinaisVitais.pressao}`} />
-                    <Chip label={`Temp: ${mockData.avaliacao.sinaisVitais.temperatura}`} />
-                    <Chip label={`FC: ${mockData.avaliacao.sinaisVitais.frequenciaCardiaca}`} />
-                  </Box>
-                </CardContent>
-              </Card>
-            )}
-
-            {renderSection(
-              'Diagnóstico de Enfermagem',
-              <DiagnosisIcon />,
-              <Box>
-                <Typography variant="subtitle1" gutterBottom>
-                  Problemas de Saúde:
-                </Typography>
-                <List>
-                  {mockData.diagnostico.problemasSaude.map((problema, index) => (
-                    <ListItem key={index}>
-                      <ListItemText primary={problema} />
-                    </ListItem>
-                  ))}
-                </List>
-
-                <Typography variant="subtitle1" gutterBottom>
-                  Necessidades de Cuidado:
-                </Typography>
-                <List>
-                  {mockData.diagnostico.necessidadesCuidado.map((necessidade, index) => (
-                    <ListItem key={index}>
-                      <ListItemText primary={necessidade} />
-                    </ListItem>
-                  ))}
-                </List>
-              </Box>
-            )}
-
-            {renderSection(
-              'Planejamento de Enfermagem',
-              <PlanningIcon />,
-              <List>
-                {mockData.planejamento.intervencoes.map((intervencao, index) => (
-                  <ListItem key={index}>
-                    <ListItemText primary={intervencao} />
-                  </ListItem>
-                ))}
-              </List>
-            )}
-
-            {renderSection(
-              'Implementação de Enfermagem',
-              <ImplementationIcon />,
-              <List>
-                {mockData.implementacao.acoes.map((acao, index) => (
-                  <ListItem key={index}>
-                    <ListItemText primary={acao} />
-                  </ListItem>
-                ))}
-              </List>
-            )}
-          </Box>
-
-          <Divider sx={{ my: 4 }} />
-
-          {/* Formulário de Evolução */}
-          <Box component="form" onSubmit={handleSubmit}>
-            <Typography variant="h5" sx={{ mb: 3, display: 'flex', alignItems: 'center', gap: 1 }}>
-              <EvolutionIcon /> Avaliação Final
-            </Typography>
-
-            <Grid container spacing={3}>
-              <Grid item xs={12}>
-                <TextField
-                  fullWidth
-                  required
-                  multiline
-                  rows={4}
-                  label="Avaliação dos Resultados"
-                  value={formData.avaliacaoResultados}
-                  onChange={(e) => handleChange('avaliacaoResultados', e.target.value)}
-                  error={!!errors.avaliacaoResultados}
-                  helperText={errors.avaliacaoResultados}
-                />
-              </Grid>
-              <Grid item xs={12}>
-                <TextField
-                  fullWidth
-                  multiline
-                  rows={4}
-                  label="Ajustes Propostos"
-                  value={formData.ajustesPropostos}
-                  onChange={(e) => handleChange('ajustesPropostos', e.target.value)}
-                  error={!!errors.ajustesPropostos}
-                  helperText={errors.ajustesPropostos}
-                />
-              </Grid>
-            </Grid>
-
-            <Box sx={{ display: 'flex', justifyContent: 'flex-end', mt: 4 }}>
-              <Button
-                type="submit"
-                variant="contained"
-                size="large"
-                startIcon={<SaveIcon />}
-              >
-                Finalizar Evolução
-              </Button>
-            </Box>
-          </Box>
-        </Paper>
-      </Container>
-    </Layout>
-  );
-}
+  const mockData = {
+    avaliacao: {
+      queixaPrincipal: "Dor abdominal intensa",
+      historicoMedico: "Histórico de gastrite",
+      sinaisVitais: {
+        pressao: "120/80 mmHg",
+        temperatura: "36.5°C",
+        frequenciaCardiaca: "80 bpm"
+      }
+    },
+    diagnostico: {
+      problemasSaude: [
+        "Dor aguda relacionada à inflamação gástrica",
+        "Ansiedade relacionada ao quadro clínico"
+      ],
+      necessidadesCuidado: [
+        "Controle da dor",
+        "Suporte emocional"
+      ]
+    },
+    planejamento: {
+      intervencoes: [
+        "Administração de medicação conforme prescrição",
+        "Monitoramento dos sinais vitais",
+        "Orientação sobre dieta"
+      ]
+    },
+    implementacao: {
+      acoes: [
+        "Medicação administrada às 14h",
+        "Sinais vitais estáveis",
+        "Orientações realizadas"
+      ]
+    }
+  };
+  interface EvolutionForm {
+    avaliacaoResultados: string;
+    ajustesPropostos: string;
+  }
