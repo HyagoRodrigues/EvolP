@@ -16,24 +16,41 @@ export default function Login() {
   const theme = useTheme();
   const [error, setError] = useState('');
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
-    const formData = new FormData(e.target as HTMLFormElement);
-    
+  
+    const formData = new FormData(e.target);
+    const email = formData.get('email');
+    const password = formData.get('password');
+  
+    if (!email || !password) {
+      setError('Por favor, preencha todos os campos');
+      return;
+    }
+  
     const result = await signIn('credentials', {
-      email: formData.get('email'),      // Changed from username to email
-      password: formData.get('password'),
-      redirect: false,
+      email,
+      password,
+      redirect: false, // Redirecionamento automático desabilitado
     });
-
-    if (result?.ok) {
-      router.push('/dashboard');
+    console.log(result)
+    if (result?.error) {
+      switch (result.error) {
+        case 'CredentialsSignin':
+          setError('E-mail ou senha incorretos');
+          break;
+        case 'AccessDenied':
+          setError('Acesso negado. Você não tem permissão para acessar o sistema');
+          break;
+        default:
+          setError('Erro ao fazer login. Por favor, tente novamente');
+      } 
     } else {
-      setError('Email ou senha inválidos');
+      router.push(result.url || '/dashboard');
     }
   };
-
+ 
   return (
     <Box
       sx={{

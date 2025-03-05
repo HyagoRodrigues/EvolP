@@ -17,32 +17,18 @@ export default NextAuth({
             name: "Administrador"
           };
         }
-        return null;
+        return null; // Retorna null em caso de falha
       }
     })
   ],
   pages: {
-    signIn: '/login',
+    signIn: '/login', // Página de login personalizada
   },
   callbacks: {
     async redirect({ url, baseUrl }) {
-      // Allows relative callback URLs
-      if (url.startsWith("/")) return `${baseUrl}${url}`
-      // Allows callback URLs on the same origin
-      else if (new URL(url).origin === baseUrl) return url
-      return baseUrl
-    },
-    async jwt({ token, user }) {
-      if (user) {
-        token.id = user.id;
-      }
-      return token;
-    },
-    async session({ session, token }) {
-      if (session?.user) {
-        session.user.id = token.id as string;
-      }
-      return session;
+      // Redireciona para /dashboard após o login
+      if (url.startsWith("/dashboard")) return url;
+      return baseUrl;
     },
   },
 });
