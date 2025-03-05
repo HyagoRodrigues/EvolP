@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/router';
 import {
   Container,
@@ -17,34 +17,86 @@ import {
   Timeline as EvolutionIcon,
   ArrowBack as ArrowBackIcon,
   Edit as EditIcon,
+  Home as HomeIcon,
 } from '@mui/icons-material';
 import Layout from '../../../components/Layout';
+
+interface Paciente {
+  id: string;
+  nome: string;
+  cpf: string;
+  dataNascimento: string;
+  leito: string;
+  rg: string;
+  sexo: string;
+  estadoCivil: string;
+  escolaridade: string;
+  ocupacao: string;
+  naturalidade: string;
+  nomeMae: string;
+  nomePai: string;
+  tipoSanguineo: string;
+  endereco: string;
+  alergias: string[];
+  medicamentos: { substancia: string; dose: string; horario: string }[];
+}
 
 export default function PatientDetails() {
   const router = useRouter();
   const { id } = router.query;
-  const [paciente, setPaciente] = useState({
+  const [paciente, setPaciente] = useState<Paciente>({
     id: '',
     nome: '',
     cpf: '',
     dataNascimento: '',
     leito: '',
+    rg: '',
+    sexo: '',
+    estadoCivil: '',
+    escolaridade: '',
+    ocupacao: '',
+    naturalidade: '',
+    nomeMae: '',
+    nomePai: '',
+    tipoSanguineo: '',
+    endereco: '',
+    alergias: [],
+    medicamentos: [],
   });
-
-  useEffect(() => {
+  const fetchPaciente = useCallback(() => {
     if (id) {
       const storedPacientes = JSON.parse(localStorage.getItem('pacientes') || '[]');
-      const pacienteEncontrado = storedPacientes.find((p: any) => p.id === Number(id));
+      const pacienteEncontrado = storedPacientes.find((p: Paciente) => p.id.toString() === id.toString());
       if (pacienteEncontrado) {
-        setPaciente(pacienteEncontrado);
+        setPaciente({
+          ...pacienteEncontrado,
+          alergias: pacienteEncontrado.alergias || [],
+          medicamentos: pacienteEncontrado.medicamentos || [],
+        });
       }
     }
   }, [id]);
-
+  useEffect(() => {
+    fetchPaciente();
+  }, [fetchPaciente]);
   const formatarData = (data: string) => {
+    if (!data) return 'Data não informada';
     return new Date(data).toLocaleDateString('pt-BR');
   };
-
+  const calcularIdade = (dataNascimento: string) => {
+    if (!dataNascimento) return 'Idade não calculada';
+    const hoje = new Date();
+    const nascimento = new Date(dataNascimento);
+    let idade = hoje.getFullYear() - nascimento.getFullYear();
+    const mesAtual = hoje.getMonth();
+    const mesNascimento = nascimento.getMonth();
+    
+    if (mesAtual < mesNascimento || 
+        (mesAtual === mesNascimento && hoje.getDate() < nascimento.getDate())) {
+      idade--;
+    }
+    return `${idade} anos`;
+  };
   const nursingProcessSteps = [
     {
       title: 'Avaliação de Enfermagem',
@@ -77,7 +129,6 @@ export default function PatientDetails() {
       path: `/pacientes/${id}/evolucao`,
     },
   ];
-
   return (
     <Layout>
       <Container maxWidth="lg" sx={{ mt: 4, mb: 4 }}>
@@ -97,8 +148,22 @@ export default function PatientDetails() {
           >
             Voltar
           </Button>
+          <Button
+            startIcon={<HomeIcon />}
+            variant="outlined"
+            sx={{
+              color: 'primary.light',
+              borderColor: 'primary.light',
+              '&:hover': {
+                borderColor: 'primary.main',
+                color: 'primary.main',
+              },
+            }}
+            onClick={() => router.push('/dashboard')}
+          >
+            Início
+          </Button>
         </Box>
-
         <Grid container spacing={3}>
           <Grid item xs={12} md={4}>
             <Paper elevation={3} sx={{ p: 4, mb: { xs: 3, md: 0 } }}>
@@ -118,38 +183,72 @@ export default function PatientDetails() {
                   Editar
                 </Button>
               </Box>
-
               <Stack spacing={2}>
                 <Box>
                   <Typography variant="subtitle2" color="text.secondary">
                     Nome
                   </Typography>
-                  <Typography variant="body1">{paciente.nome}</Typography>
+                  <Typography variant="body1">{paciente.nome || 'Não informado'}</Typography>
                 </Box>
-                <Box>
-                  <Typography variant="subtitle2" color="text.secondary">
-                    CPF
-                  </Typography>
-                  <Typography variant="body1">{paciente.cpf}</Typography>
-                </Box>
+
+
                 <Box>
                   <Typography variant="subtitle2" color="text.secondary">
                     Data de Nascimento
                   </Typography>
                   <Typography variant="body1">
-                    {formatarData(paciente.dataNascimento)}
+                    {formatarData(paciente.dataNascimento)} ({calcularIdade(paciente.dataNascimento)})
                   </Typography>
                 </Box>
                 <Box>
                   <Typography variant="subtitle2" color="text.secondary">
+                    Sexo
+                  </Typography>
+                  <Typography variant="body1">{paciente.sexo || 'Não informado'}</Typography>
+                </Box>
+
+
+
+
+
+                <Box>
+                  <Typography variant="subtitle2" color="text.secondary">
+                    Tipo Sanguíneo
+                  </Typography>
+                  <Typography variant="body1">{paciente.tipoSanguineo || 'Não informado'}</Typography>
+                </Box>
+                
+                <Box>
+                  <Typography variant="subtitle2" color="text.secondary">
                     Leito
                   </Typography>
-                  <Typography variant="body1">{paciente.leito}</Typography>
+                  <Typography variant="body1">{paciente.leito || 'Não informado'}</Typography>
                 </Box>
+                {paciente.alergias && paciente.alergias.length > 0 && (
+                  <Box>
+                    <Typography variant="subtitle2" color="text.secondary">
+                      Alergias
+                    </Typography>
+                    <Typography variant="body1">
+                      {paciente.alergias.join(', ')}
+                    </Typography>
+                  </Box>
+                )}
+                {paciente.medicamentos && paciente.medicamentos.length > 0 && (
+                  <Box>
+                    <Typography variant="subtitle2" color="text.secondary">
+                      Medicamentos
+                    </Typography>
+                    {paciente.medicamentos.map((med, index) => (
+                      <Typography key={index} variant="body1">
+                        {med.substancia} - {med.dose} - {med.horario}
+                      </Typography>
+                    ))}
+                  </Box>
+                )}
               </Stack>
             </Paper>
           </Grid>
-
           <Grid item xs={12} md={8}>
             <Paper elevation={3} sx={{ p: 4 }}>
               <Typography variant="h5" component="h2" color="primary" gutterBottom>
