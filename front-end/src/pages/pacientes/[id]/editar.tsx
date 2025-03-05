@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/router';
 import {
   Container,
@@ -11,12 +11,12 @@ import {
   MenuItem,
   IconButton,
   Stack,
+  Alert,
+  Snackbar,
 } from '@mui/material';
 import { Add as AddIcon, Delete as DeleteIcon, ArrowBack as ArrowBackIcon, Home as HomeIcon } from '@mui/icons-material';
-import { useSession } from 'next-auth/react';
-import Layout from '../components/Layout';
-import { Alert, Snackbar } from '@mui/material';
-import { validateCPF } from '../utils/validations';
+import Layout from '../../../components/Layout';
+import { validateCPF } from '../../../utils/validations';
 
 // Constantes para opções do formulário
 const TIPOS_SANGUINEOS = ['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-', 'Não sabe'];
@@ -33,6 +33,7 @@ const ESCOLARIDADE = [
 const SEXO = ['Masculino', 'Feminino', 'Outro', 'Prefiro não informar'];
 
 interface FormData {
+  id: string;
   nome: string;
   cpf: string;
   rg: string;
@@ -58,17 +59,13 @@ interface Medication {
   horario: string;
 }
 
-export default function CadastrarPaciente() {
+export default function EditarPaciente() {
   const router = useRouter();
-  const { status } = useSession({
-    required: true,
-    onUnauthenticated() {
-      router.push('/login');
-    },
-  });
-  const [openSnackbar, setOpenSnackbar] = useState(false);
+  const { id } = router.query;
   const formRef = useRef<HTMLFormElement>(null);
+  const [openSnackbar, setOpenSnackbar] = useState(false);
   const [formData, setFormData] = useState<FormData>({
+    id: '',
     nome: '',
     cpf: '',
     rg: '',
@@ -96,35 +93,29 @@ export default function CadastrarPaciente() {
   });
   const [snackbarMessage, setSnackbarMessage] = useState('');
   const [snackbarSeverity, setSnackbarSeverity] = useState<'success' | 'error' | 'warning' | 'info'>('success');
-  const resetForm = () => {
-    setFormData({
-      nome: '',
-      cpf: '',
-      rg: '',
-      dataNascimento: '',
-      leito: '',
-      nomeMae: '',
-      nomePai: '',
-      tipoSanguineo: '',
-      endereco: '',
-      estadoCivil: '',
-      escolaridade: '',
-      ocupacao: '',
-      sexo: '',
-      alergias: [],
-      medicamentos: [],
-      usoAlcool: '',
-      usoDrogas: '',
-    });
-    setErrors({});
-    setNovaAlergia('');
-    setNovoMedicamento({ substancia: '', dose: '', horario: '' });
-  };
+
+  // Carrega os dados do paciente ao montar o componente
+  useEffect(() => {
+    if (id) {
+      const pacientes = JSON.parse(localStorage.getItem('pacientes') || '[]');
+      const pacienteEncontrado = pacientes.find((p: FormData) => p.id === id);
+      if (pacienteEncontrado) {
+        setFormData({
+          ...pacienteEncontrado,
+          dataNascimento: pacienteEncontrado.dataNascimento.split('T')[0], // Ajusta a data para o formato do input
+        });
+      }
+    }
+  }, [id]);
+
+  // Função para exibir mensagens
   const handleShowMessage = (message: string, severity: 'success' | 'error' | 'warning' | 'info' = 'success') => {
     setSnackbarMessage(message);
     setSnackbarSeverity(severity);
     setOpenSnackbar(true);
   };
+
+  // Função para adicionar alergia
   const handleAddAlergia = () => {
     if (novaAlergia.trim()) {
       setFormData((prev) => ({
@@ -137,11 +128,45 @@ export default function CadastrarPaciente() {
       handleShowMessage('Por favor, digite uma alergia válida', 'warning');
     }
   };
+
+  // Função para remover alergia
+  const handleRemoveAlergia = (index: number) => {
+    setFormData((prev) => ({
+      ...prev,
+      alergias: prev.alergias.filter((_, i) => i !== index),
+    }));
+    handleShowMessage('Alergia removida com sucesso', 'info');
+  };
+
+  // Função para adicionar medicamento
+  const handleAddMedicamento = () => {
+    if (novoMedicamento.substancia && novoMedicamento.dose && novoMedicamento.horario) {
+      setFormData((prev) => ({
+        ...prev,
+        medicamentos: [...prev.medicamentos, novoMedicamento],
+      }));
+      setNovoMedicamento({ substancia: '', dose: '', horario: '' });
+      handleShowMessage('Medicamento adicionado com sucesso', 'success');
+    } else {
+      handleShowMessage('Por favor, preencha todos os campos do medicamento', 'warning');
+    }
+  };
+
+  // Função para remover medicamento
+  const handleRemoveMedicamento = (index: number) => {
+    setFormData((prev) => ({
+      ...prev,
+      medicamentos: prev.medicamentos.filter((_, i) => i !== index),
+    }));
+    handleShowMessage('Medicamento removido com sucesso', 'info');
+  };
+
+  // Função para validar o formulário
   const validateForm = (): boolean => {
     const newErrors: Partial<FormData> = {};
     let hasErrors = false;
     let errorMessages: string[] = [];
-  
+
     if (!formData.nome) {
       newErrors.nome = 'Nome é obrigatório';
       errorMessages.push('Nome é obrigatório');
@@ -157,62 +182,49 @@ export default function CadastrarPaciente() {
       errorMessages.push('Leito é obrigatório');
       hasErrors = true;
     }
-    
-    if (formData.cpf) {
-      if (!validateCPF(formData.cpf)) {
-        newErrors.cpf = 'CPF inválido';
-        errorMessages.push('CPF inválido');
-        hasErrors = true;
-      } else {
-        const pacientes = JSON.parse(localStorage.getItem('pacientes') || '[]');
-        const cpfExists = pacientes.some((p: any) => p.cpf === formData.cpf);
-        if (cpfExists) {
-          newErrors.cpf = 'CPF já cadastrado';
-          errorMessages.push('CPF já cadastrado');
-          hasErrors = true;
-        }
-      }
+    if (formData.cpf && !validateCPF(formData.cpf)) {
+      newErrors.cpf = 'CPF inválido';
+      errorMessages.push('CPF inválido');
+      hasErrors = true;
     }
-  
+
     setErrors(newErrors);
-  
+
     if (hasErrors) {
       handleShowMessage(
-        errorMessages.length > 1 
+        errorMessages.length > 1
           ? `Erros encontrados:\n${errorMessages.join('\n')}`
           : errorMessages[0],
         'error'
       );
     }
-  
+
     return !hasErrors;
   };
-  const handleSubmit = (e: React.FormEvent): void => {
+
+  // Função para submeter o formulário
+  const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-  
+
     if (validateForm()) {
       try {
         const pacientes = JSON.parse(localStorage.getItem('pacientes') || '[]');
-        const novoPaciente = {
-          ...formData,
-          id: crypto.randomUUID(),
-          dataCadastro: new Date().toISOString()
-        };
-        
-        pacientes.push(novoPaciente);
-        localStorage.setItem('pacientes', JSON.stringify(pacientes));
-  
-        formRef.current?.reset();
-        resetForm();
-  
-        handleShowMessage('Paciente cadastrado com sucesso!', 'success');
+        const updatedPacientes = pacientes.map((p: FormData) =>
+          p.id === id ? { ...formData } : p
+        );
+
+        localStorage.setItem('pacientes', JSON.stringify(updatedPacientes));
+        handleShowMessage('Paciente atualizado com sucesso!', 'success');
+        router.push('/pacientes');
       } catch (error) {
-        console.error('Erro ao salvar paciente:', error);
-        handleShowMessage('Erro ao salvar o paciente. Por favor, tente novamente.', 'error');
+        console.error('Erro ao atualizar paciente:', error);
+        handleShowMessage('Erro ao atualizar o paciente. Por favor, tente novamente.', 'error');
       }
     }
   };
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>): void => {
+
+  // Função para atualizar os campos do formulário
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
     setFormData((prev) => ({
       ...prev,
@@ -225,36 +237,7 @@ export default function CadastrarPaciente() {
       }));
     }
   };
-  const handleAddMedicamento = (): void => {
-    if (novoMedicamento.substancia && novoMedicamento.dose && novoMedicamento.horario) {
-      setFormData((prev) => ({
-        ...prev,
-        medicamentos: [...prev.medicamentos, novoMedicamento],
-      }));
-      setNovoMedicamento({ substancia: '', dose: '', horario: '' });
-      handleShowMessage('Medicamento adicionado com sucesso', 'success');
-    } else {
-      handleShowMessage('Por favor, preencha todos os campos do medicamento', 'warning');
-    }
-  };
-  const handleRemoveAlergia = (index: number): void => {
-    if (window.confirm('Tem certeza que deseja remover esta alergia?')) {
-      setFormData((prev) => ({
-        ...prev,
-        alergias: prev.alergias.filter((_, i) => i !== index),
-      }));
-      handleShowMessage('Alergia removida com sucesso', 'info');
-    }
-  };
-  const handleRemoveMedicamento = (index: number): void => {
-    if (window.confirm('Tem certeza que deseja remover este medicamento?')) {
-      setFormData((prev) => ({
-        ...prev,
-        medicamentos: prev.medicamentos.filter((_, i) => i !== index),
-      }));
-      handleShowMessage('Medicamento removido com sucesso', 'info');
-    }
-  };
+
   return (
     <Layout>
       <Container maxWidth="md" sx={{ py: 4 }}>
@@ -276,10 +259,11 @@ export default function CadastrarPaciente() {
             </Button>
           </Stack>
           <Typography variant="h4" component="h1" gutterBottom color="primary">
-            Cadastro de Paciente
+            Editar Paciente
           </Typography>
           <Box component="form" ref={formRef} onSubmit={handleSubmit}>
             <Grid container spacing={3}>
+              {/* Campos do formulário */}
               <Grid item xs={12}>
                 <TextField
                   fullWidth
@@ -305,7 +289,7 @@ export default function CadastrarPaciente() {
                   helperText={errors.cpf}
                   inputProps={{
                     maxLength: 11,
-                    pattern: '[0-9]*'
+                    pattern: '[0-9]*',
                   }}
                 />
               </Grid>
@@ -534,7 +518,7 @@ export default function CadastrarPaciente() {
                   size="large"
                   fullWidth
                 >
-                  Cadastrar
+                  Salvar Alterações
                 </Button>
               </Grid>
             </Grid>
@@ -557,3 +541,4 @@ export default function CadastrarPaciente() {
       </Snackbar>
     </Layout>
   );
+}

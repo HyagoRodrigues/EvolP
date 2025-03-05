@@ -12,11 +12,13 @@ import {
   Typography,
   TextField,
   IconButton,
+  Button,
   Box,
 } from '@mui/material';
 import {
   Visibility as VisibilityIcon,
   Search as SearchIcon,
+  ArrowBack as ArrowBackIcon,
 } from '@mui/icons-material';
 import Layout from '../../components/Layout';
 
@@ -46,14 +48,15 @@ export default function ListaEvolucoes() {
   const handleSearch = (event: React.ChangeEvent<HTMLInputElement>) => {
     const term = event.target.value.toLowerCase();
     setSearchTerm(term);
-    
+
     if (term === '') {
       setEvolucoes(mockEvolucoes);
     } else {
-      const filtered = mockEvolucoes.filter(evolucao =>
-        evolucao.paciente.toLowerCase().includes(term) ||
-        evolucao.profissional.toLowerCase().includes(term) ||
-        evolucao.tipo.toLowerCase().includes(term)
+      const filtered = mockEvolucoes.filter(
+        (evolucao) =>
+          evolucao.paciente.toLowerCase().includes(term) ||
+          evolucao.profissional.toLowerCase().includes(term) ||
+          evolucao.tipo.toLowerCase().includes(term)
       );
       setEvolucoes(filtered);
     }
@@ -66,54 +69,74 @@ export default function ListaEvolucoes() {
   return (
     <Layout>
       <Container maxWidth="lg" sx={{ mt: 4, mb: 4 }}>
-        <Typography variant="h4" component="h1" gutterBottom color="primary">
-          Evoluções
-        </Typography>
+        
 
-        <Box sx={{ mb: 3 }}>
-          <TextField
-            fullWidth
+        <Paper elevation={3} sx={{ p: 4 }}>
+        <Box sx={{ display: 'flex', gap: 2, mb: 4 }}>
+          <Button
+            startIcon={<ArrowBackIcon />}
             variant="outlined"
-            placeholder="Buscar evolução por paciente, profissional ou tipo..."
-            value={searchTerm}
-            onChange={handleSearch}
-            InputProps={{
-              startAdornment: <SearchIcon sx={{ mr: 1, color: 'text.secondary' }} />,
+            sx={{
+              color: 'primary.light',
+              borderColor: 'primary.light',
+              '&:hover': {
+                borderColor: 'primary.main',
+                color: 'primary.main',
+              },
             }}
-          />
+            onClick={() => router.back()}
+          >
+            Voltar
+          </Button>
         </Box>
+          <Typography variant="h4" component="h1" gutterBottom color="primary">
+            Evoluções
+          </Typography>
+          <Box sx={{ mb: 3 }}>
+            <TextField
+              fullWidth
+              variant="outlined"
+              placeholder="Buscar evolução por paciente, profissional ou tipo..."
+              value={searchTerm}
+              onChange={handleSearch}
+              InputProps={{
+                startAdornment: <SearchIcon sx={{ mr: 1, color: 'text.secondary' }} />,
+              }}
+            />
+          </Box>
 
-        <TableContainer component={Paper}>
-          <Table>
-            <TableHead>
-              <TableRow>
-                <TableCell>Paciente</TableCell>
-                <TableCell>Data</TableCell>
-                <TableCell>Profissional</TableCell>
-                <TableCell>Tipo</TableCell>
-                <TableCell align="center">Ações</TableCell>
-              </TableRow>
-            </TableHead>
-            <TableBody>
-              {evolucoes.map((evolucao) => (
-                <TableRow key={evolucao.id}>
-                  <TableCell>{evolucao.paciente}</TableCell>
-                  <TableCell>{formatarData(evolucao.data)}</TableCell>
-                  <TableCell>{evolucao.profissional}</TableCell>
-                  <TableCell>{evolucao.tipo}</TableCell>
-                  <TableCell align="center">
-                    <IconButton
-                      color="primary"
-                      onClick={() => router.push(`/evolucoes/${evolucao.id}`)}
-                    >
-                      <VisibilityIcon />
-                    </IconButton>
-                  </TableCell>
+          <TableContainer>
+            <Table>
+              <TableHead>
+                <TableRow>
+                  <TableCell>Paciente</TableCell>
+                  <TableCell>Data</TableCell>
+                  <TableCell>Profissional</TableCell>
+                  <TableCell>Tipo</TableCell>
+                  <TableCell align="center">Ações</TableCell>
                 </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </TableContainer>
+              </TableHead>
+              <TableBody>
+                {evolucoes.map((evolucao) => (
+                  <TableRow key={evolucao.id}>
+                    <TableCell>{evolucao.paciente}</TableCell>
+                    <TableCell>{formatarData(evolucao.data)}</TableCell>
+                    <TableCell>{evolucao.profissional}</TableCell>
+                    <TableCell>{evolucao.tipo}</TableCell>
+                    <TableCell align="center">
+                      <IconButton
+                        color="primary"
+                        onClick={() => router.push(`/evolucoes/${evolucao.id}`)}
+                      >
+                        <VisibilityIcon />
+                      </IconButton>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </TableContainer>
+        </Paper>
       </Container>
     </Layout>
   );

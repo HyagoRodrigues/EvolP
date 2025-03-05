@@ -1,34 +1,32 @@
 import { ReactNode } from 'react';
-import { Container, Stack, Button } from '@mui/material';
-import { ArrowBack as ArrowBackIcon, Home as HomeIcon } from '@mui/icons-material';
-import { useRouter } from 'next/router';
+import { Box, AppBar, Toolbar, Typography, Container, Button } from '@mui/material';
+import { signOut } from 'next-auth/react';
+import { Logout } from '@mui/icons-material';
 
 interface LayoutProps {
   children: ReactNode;
 }
 
 export default function Layout({ children }: LayoutProps) {
-  const router = useRouter();
-
   return (
-    <Container maxWidth="lg">
-      <Stack direction="row" spacing={2} sx={{ my: 3 }}>
-        <Button
-          variant="outlined"
-          startIcon={<ArrowBackIcon />}
-          onClick={() => router.back()}
-        >
-          Voltar
-        </Button>
-        <Button
-          variant="outlined"
-          startIcon={<HomeIcon />}
-          onClick={() => router.push('/')}
-        >
-          Página Inicial
-        </Button>
-      </Stack>
-      {children}
-    </Container>
+    <Box sx={{ display: 'flex', flexDirection: 'column', minHeight: '100vh' }}>
+      <AppBar position="static">
+        <Toolbar sx={{ display: 'flex', justifyContent: 'space-between' }}>
+          <Typography variant="h6">
+            EvolP
+          </Typography>
+          <Button 
+            color="inherit" 
+            onClick={() => signOut({ callbackUrl: '/login' })}
+            startIcon={<Logout />}
+          >
+            Sair
+          </Button>
+        </Toolbar>
+      </AppBar>
+      <Container component="main" sx={{ flex: 1, py: 3 }}>
+        {children}
+      </Container>
+    </Box>
   );
 }
