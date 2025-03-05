@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react'; // Certifique-se de importar useEffect
 import { useRouter } from 'next/router';
 import {
   Container,
@@ -16,40 +16,36 @@ import {
   Save as SaveIcon,
   Person as PersonIcon,
   Science as ScienceIcon,
-  PictureAsPdf as PictureAsPdfIcon, // Adicionando esta importação
+  PictureAsPdf as PictureAsPdfIcon,
 } from '@mui/icons-material';
 import Layout from '../../../../components/Layout';
 import { useNursing } from '../../../../contexts/NursingContext';
 import html2canvas from 'html2canvas';
 import jsPDF from 'jspdf';
-
 import { storageService } from '../../../../services/storageService';
-
-interface AssessmentForm {
-  // Dados Subjetivos
-  queixaPrincipal: string;
-  historicoMedico: string;
-  alergias: string;
-  medicamentosUso: string;
-  observacoesSubjetivas: string;
-
-  // Dados Objetivos
-  pressaoArterial: string;
-  frequenciaCardiaca: string;
-  temperatura: string;
-  resultadosExames: string;
-  observacoesExameFisico: string;
-}
-
-const patientData = {
-  nome: 'Nome do Paciente',
-  idade: 30,
-  prontuario: '12345',
-};
 
 export default function NursingAssessment() {
   const router = useRouter();
   const { id } = router.query;
+
+  // Estado do paciente
+  const [paciente, setPaciente] = useState({
+    nome: '',
+    dataNascimento: '',
+    leito: '',
+  });
+
+  // Carregar dados do paciente ao montar o componente
+  useEffect(() => {
+    if (id) {
+      const storedPacientes = JSON.parse(localStorage.getItem('pacientes') || '[]');
+      const pacienteEncontrado = storedPacientes.find((p: any) => p.id.toString() === id.toString());
+      if (pacienteEncontrado) {
+        setPaciente(pacienteEncontrado);
+      }
+    }
+  }, [id]);
+
   const { updateNursingData } = useNursing();
   const [formData, setFormData] = useState<AssessmentForm>({
     queixaPrincipal: '',
@@ -71,7 +67,6 @@ export default function NursingAssessment() {
       ...prev,
       [name]: value,
     }));
-    // Limpa o erro quando o campo é modificado
     if (errors[name as keyof AssessmentForm]) {
       setErrors((prev) => ({
         ...prev,
@@ -97,24 +92,17 @@ export default function NursingAssessment() {
     }
 
     setErrors(newErrors);
-    return Object.keys(newErrors).length === 0; // Retorna true se não houver erros
+    return Object.keys(newErrors).length === 0;
   };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-  
+
     if (validateForm()) {
       try {
-        // Salva no localStorage
         storageService.salvarAvaliacao(id as string, formData);
-        
-        // Atualiza o contexto se necessário
         updateNursingData(id as string, formData);
-        
-        // Mostra mensagem de sucesso
         alert('Avaliação salva com sucesso!');
-        
-        // Redireciona
         router.push('/');
       } catch (error) {
         console.error('Erro ao salvar avaliação:', error);
@@ -122,131 +110,161 @@ export default function NursingAssessment() {
       }
     }
   };
-
-  const handleGeneratePDF = async () => {
-    try {
-      // Validar se há dados suficientes
-      if (!formData.queixaPrincipal || !formData.pressaoArterial) {
-        alert('Por favor, preencha os campos obrigatórios antes de gerar o PDF');
-        return;
+  // Add these utility functions before handleGeneratePDF
+    const formatarData = (data: string) => {
+      if (!data) return 'Data não informada';
+      return new Date(data).toLocaleDateString('pt-BR');
+    };
+  
+    const calcularIdade = (dataNascimento: string) => {
+      if (!dataNascimento) return 'Idade não calculada';
+      const hoje = new Date();
+      const nascimento = new Date(dataNascimento);
+      let idade = hoje.getFullYear() - nascimento.getFullYear();
+      const mesAtual = hoje.getMonth();
+      const mesNascimento = nascimento.getMonth();
+      
+      if (mesAtual < mesNascimento || 
+          (mesAtual === mesNascimento && hoje.getDate() < nascimento.getDate())) {
+        idade--;
       }
-      
-      const pdf = new jsPDF();
-      
-      // Configurações de estilo melhoradas
-      const styles = {
-        title: { fontSize: 20, color: [41, 128, 185] }, // Azul profissional
-        subtitle: { fontSize: 16, color: [52, 73, 94] }, // Cinza escuro
-        normal: { fontSize: 12, color: [0, 0, 0] },
-        lineHeight: 8,
-        margin: 20
-      };
-      
-      let yPosition = styles.margin;
-      
-      // Cabeçalho com logo ou título institucional
-      pdf.setFontSize(styles.title.fontSize);
-      pdf.setTextColor(...styles.title.color);
-      pdf.text('EvolP - Sistema de Evolução de Pacientes', styles.margin, yPosition);
-      yPosition += styles.lineHeight * 3;
-      
-      // Informações do documento
-      pdf.setFontSize(styles.normal.fontSize);
-      pdf.setTextColor(...styles.normal.color);
-      const currentDate = new Date().toLocaleDateString('pt-BR');
-      const currentTime = new Date().toLocaleTimeString('pt-BR');
-      pdf.text(`Data: ${currentDate} - Hora: ${currentTime}`, styles.margin, yPosition);
-      yPosition += styles.lineHeight * 2;
-      
-      // Dados do Paciente com validação
-      pdf.setFontSize(styles.subtitle.fontSize);
-      pdf.setTextColor(...styles.subtitle.color);
-      pdf.text('Dados do Paciente', styles.margin, yPosition);
-      yPosition += styles.lineHeight;
-      
-      // Função auxiliar para adicionar campos com validação
-      const addField = (label: string, value: string) => {
-        if (value) {
-          pdf.setFont('helvetica', 'bold');
-          pdf.text(`${label}:`, styles.margin + 5, yPosition);
-          pdf.setFont('helvetica', 'normal');
-          pdf.text(value, styles.margin + 50, yPosition);
-          yPosition += styles.lineHeight;
+      return `${idade} anos`;
+    };
+  
+    const handleGeneratePDF = async () => {
+      try {
+        if (!formData.queixaPrincipal || !formData.pressaoArterial) {
+          alert('Por favor, preencha os campos obrigatórios antes de gerar o PDF');
+          return;
         }
-      };
-      
-      // Seções do documento com dados dinâmicos
-      const sections = [
-        {
-          title: 'Dados Subjetivos',
-          fields: [
-            { label: 'Queixa Principal', value: formData.queixaPrincipal },
-            { label: 'Histórico Médico', value: formData.historicoMedico },
-            { label: 'Alergias', value: formData.alergias },
-            { label: 'Medicamentos', value: formData.medicamentosUso },
-            { label: 'Observações', value: formData.observacoesSubjetivas }
-          ]
-        },
-        {
-          title: 'Dados Objetivos',
-          fields: [
-            { label: 'Pressão Arterial', value: formData.pressaoArterial },
-            { label: 'Freq. Cardíaca', value: formData.frequenciaCardiaca },
-            { label: 'Temperatura', value: formData.temperatura },
-            { label: 'Result. Exames', value: formData.resultadosExames },
-            { label: 'Obs. Exame Físico', value: formData.observacoesExameFisico }
-          ]
-        }
-      ];
-      
-      // Renderizar seções
-      sections.forEach(section => {
-        // Verificar espaço na página
-        if (yPosition > pdf.internal.pageSize.height - 50) {
-          pdf.addPage();
-          yPosition = styles.margin;
-        }
-      
+  
+        const pdf = new jsPDF();
+  
+        const styles = {
+          title: { fontSize: 18, color: [41, 128, 185] },
+          subtitle: { fontSize: 14, color: [52, 73, 94] },
+          normal: { fontSize: 11, color: [0, 0, 0] },
+          lineHeight: 7,
+          margin: 15,
+          fieldIndent: 40
+        };
+  
+        let yPosition = styles.margin;
+  
+        // Cabeçalho
+        pdf.setFontSize(styles.title.fontSize);
+        pdf.setTextColor(...styles.title.color);
+        pdf.text('EvolP - Sistema de Evolução de Pacientes', styles.margin, yPosition);
+        yPosition += styles.lineHeight * 2;
+  
+        // Data e Hora
+        pdf.setFontSize(styles.normal.fontSize);
+        pdf.setTextColor(...styles.normal.color);
+        const currentDate = new Date().toLocaleDateString('pt-BR');
+        const currentTime = new Date().toLocaleTimeString('pt-BR');
+        pdf.text(`Avaliação de Enfermagem - ${currentDate} às ${currentTime}`, styles.margin, yPosition);
+        yPosition += styles.lineHeight * 2;
+  
+        // Função auxiliar para adicionar campos
+        const addField = (label: string, value: string | undefined) => {
+          if (value) {
+            const maxWidth = pdf.internal.pageSize.width - (styles.margin * 2 + styles.fieldIndent + 10);
+            pdf.setFont('helvetica', 'bold');
+            pdf.text(`${label}:`, styles.margin, yPosition);
+            pdf.setFont('helvetica', 'normal');
+            
+            const lines = pdf.splitTextToSize(value, maxWidth);
+            pdf.text(lines, styles.margin + styles.fieldIndent, yPosition);
+            yPosition += (lines.length * styles.lineHeight) + 2;
+          }
+        };
+  
+        // Dados do Paciente
         pdf.setFontSize(styles.subtitle.fontSize);
         pdf.setTextColor(...styles.subtitle.color);
-        pdf.text(section.title, styles.margin, yPosition);
+        pdf.text('Dados do Paciente', styles.margin, yPosition);
         yPosition += styles.lineHeight * 1.5;
-      
+        
         pdf.setFontSize(styles.normal.fontSize);
         pdf.setTextColor(...styles.normal.color);
         
-        section.fields.forEach(({ label, value }) => {
-          if (value) {
-            addField(label, value);
-          }
-        });
+        addField('Nome', paciente.nome);
+        addField('Data de Nascimento', `${formatarData(paciente.dataNascimento)} (${calcularIdade(paciente.dataNascimento)})`);
+        addField('Leito', paciente.leito);
+        if (paciente.tipoSanguineo) addField('Tipo Sanguíneo', paciente.tipoSanguineo);
+        if (paciente.alergias?.length > 0) addField('Alergias', paciente.alergias.join(', '));
         
         yPosition += styles.lineHeight;
-      });
-      
-      // Rodapé
-      const pageCount = pdf.internal.getNumberOfPages();
-      for (let i = 1; i <= pageCount; i++) {
-        pdf.setPage(i);
-        pdf.setFontSize(10);
-        pdf.setTextColor(128, 128, 128);
-        pdf.text(
-          `Página ${i} de ${pageCount}`,
-          pdf.internal.pageSize.width / 2,
-          pdf.internal.pageSize.height - 10,
-          { align: 'center' }
-        );
+  
+        // Seções da avaliação
+        const sections = [
+          {
+            title: 'Dados Subjetivos',
+            fields: [
+              { label: 'Queixa Principal', value: formData.queixaPrincipal },
+              { label: 'Histórico Médico', value: formData.historicoMedico },
+              { label: 'Alergias', value: formData.alergias },
+              { label: 'Medicamentos', value: formData.medicamentosUso },
+              { label: 'Observações', value: formData.observacoesSubjetivas }
+            ]
+          },
+          {
+            title: 'Dados Objetivos',
+            fields: [
+              { label: 'Pressão Arterial', value: formData.pressaoArterial },
+              { label: 'Freq. Cardíaca', value: formData.frequenciaCardiaca },
+              { label: 'Temperatura', value: formData.temperatura },
+              { label: 'Result. Exames', value: formData.resultadosExames },
+              { label: 'Obs. Exame Físico', value: formData.observacoesExameFisico }
+            ]
+          }
+        ];
+  
+        sections.forEach(section => {
+          if (yPosition > pdf.internal.pageSize.height - 50) {
+            pdf.addPage();
+            yPosition = styles.margin;
+          }
+  
+          pdf.setFontSize(styles.subtitle.fontSize);
+          pdf.setTextColor(...styles.subtitle.color);
+          pdf.text(section.title, styles.margin, yPosition);
+          yPosition += styles.lineHeight * 1.5;
+  
+          pdf.setFontSize(styles.normal.fontSize);
+          pdf.setTextColor(...styles.normal.color);
+  
+          section.fields.forEach(({ label, value }) => {
+            if (value) {
+              addField(label, value);
+            }
+          });
+  
+          yPosition += styles.lineHeight;
+        });
+  
+        // Rodapé com paginação
+        const pageCount = pdf.internal.getNumberOfPages();
+        for (let i = 1; i <= pageCount; i++) {
+          pdf.setPage(i);
+          pdf.setFontSize(9);
+          pdf.setTextColor(128, 128, 128);
+          pdf.text(
+            `Página ${i} de ${pageCount}`,
+            pdf.internal.pageSize.width / 2,
+            pdf.internal.pageSize.height - 10,
+            { align: 'center' }
+          );
+        }
+  
+        const fileName = `avaliacao_enfermagem_${new Date().toISOString().split('T')[0]}.pdf`;
+        pdf.save(fileName);
+  
+      } catch (error) {
+        console.error('Erro ao gerar PDF:', error);
+        alert('Erro ao gerar o PDF. Por favor, tente novamente.');
       }
-      
-      // Salvar PDF com nome personalizado
-      const fileName = `avaliacao_enfermagem_${new Date().toISOString().split('T')[0]}.pdf`;
-      pdf.save(fileName);
-      
-    } catch (error) {
-      console.error('Erro ao gerar PDF:', error);
-      alert('Erro ao gerar o PDF. Por favor, tente novamente.');
-    }
-  };
+    };
   return (
     <Layout>
       <Container maxWidth="lg">
@@ -267,7 +285,6 @@ export default function NursingAssessment() {
 
           <form onSubmit={handleSubmit}>
             <Grid container spacing={3}>
-              {/* Dados Subjetivos */}
               <Grid item xs={12}>
                 <Typography variant="h6" gutterBottom>
                   <PersonIcon sx={{ verticalAlign: 'middle', mr: 1 }} />
@@ -316,7 +333,6 @@ export default function NursingAssessment() {
                 />
               </Grid>
 
-              {/* Dados Objetivos */}
               <Grid item xs={12}>
                 <Typography variant="h6" gutterBottom>
                   <ScienceIcon sx={{ verticalAlign: 'middle', mr: 1 }} />
@@ -369,14 +385,13 @@ export default function NursingAssessment() {
                 />
               </Grid>
 
-              {/* Botões de Ação */}
               <Grid item xs={12}>
                 <Box display="flex" justifyContent="flex-end" gap={2}>
                   <Button
                     variant="contained"
                     color="secondary"
                     onClick={handleGeneratePDF}
-                    startIcon={<PictureAsPdfIcon />} // Usando o ícone importado
+                    startIcon={<PictureAsPdfIcon />}
                   >
                     Gerar PDF
                   </Button>
